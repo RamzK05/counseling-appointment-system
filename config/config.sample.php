@@ -21,5 +21,5 @@ return [
         'site_key'   => 'FAKE_SITE_KEY',
         'secret_key' => 'FAKE_SECRET_KEY',
     ],
-    'encryption_key' => 'CHANGE_ME_32_BYTE_RANDOM_KEY_HEX',
+    'encryption_key' => 'REPLACE_WITH_64_CHARACTER_HEX_KEY',
 ];
