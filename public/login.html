@@ -1,0 +1,174 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Login | Campus Counseling</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="brand">
+        <div class="brand-mark">CC</div>
+        <div>
+            <h1>Campus Counseling</h1>
+            <p>Appointment and Secure Monitoring System</p>
+        </div>
+    </div>
+
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="register.php">Register</a>
+    </nav>
+</header>
+
+<main class="page-container login-container">
+
+    <div class="form-heading">
+        <span class="eyebrow">STUDENT PORTAL</span>
+        <h2>Welcome Back</h2>
+        <p>Log in to access your account.</p>
+    </div>
+
+    <section class="registration-card login-card">
+
+        <div class="notice">
+            Please enter your registered username and password.
+            Complete the security verification to continue.
+        </div>
+
+        <form action="login.php" method="POST">
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Enter your username"
+                    minlength="8"
+                    maxlength="19"
+                    autocomplete="username"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+
+                <div class="password-wrapper">
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        minlength="11"
+                        maxlength="64"
+                        autocomplete="current-password"
+                        required
+                    >
+
+                    <button
+                        type="button"
+                        id="togglePassword"
+                        class="password-toggle"
+                    >
+                        Show
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Security Verification</h3>
+
+                <p class="section-description">
+                    Enter the six characters displayed in the image.
+                </p>
+
+                <div class="captcha-wrapper">
+                    <img
+                        src="captcha.php"
+                        id="captchaImage"
+                        alt="Security verification image"
+                        width="200"
+                        height="70"
+                    >
+
+                    <button
+                        type="button"
+                        id="refreshCaptcha"
+                        class="btn-secondary"
+                    >
+                        Refresh CAPTCHA
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label for="captcha">CAPTCHA Code</label>
+                    <input
+                        type="text"
+                        id="captcha"
+                        name="captcha"
+                        placeholder="Enter CAPTCHA code"
+                        minlength="6"
+                        maxlength="6"
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary login-button">
+                    Log In
+                </button>
+
+                <p id="forgotPassword" class="hidden">
+                    Forgot Password?
+                    <a href="forgot_password.php">Reset Here</a>
+                </p>
+
+                <p>
+                    Don't have an account?
+                    <a href="register.php">Please register here</a>
+                </p>
+            </div>
+
+        </form>
+
+    </section>
+
+</main>
+
+<footer class="site-footer">
+    &copy; 2026 Campus Counseling Appointment System.
+    Academic project only.
+</footer>
+
+<script>
+    // Show or hide the password.
+    const passwordInput = document.getElementById("password");
+    const togglePassword = document.getElementById("togglePassword");
+
+    togglePassword.addEventListener("click", function () {
+        const isHidden = passwordInput.type === "password";
+
+        passwordInput.type = isHidden ? "text" : "password";
+        togglePassword.textContent = isHidden ? "Hide" : "Show";
+    });
+
+    // Refresh the CAPTCHA image.
+    const captchaImage = document.getElementById("captchaImage");
+    const refreshCaptcha = document.getElementById("refreshCaptcha");
+    const captchaInput = document.getElementById("captcha");
+
+    refreshCaptcha.addEventListener("click", function () {
+        captchaImage.src = "captcha.php?refresh=" + Date.now();
+        captchaInput.value = "";
+    });
+</script>
+
+</body>
+</html>
