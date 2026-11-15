@@ -38,7 +38,14 @@ $email = $_SESSION['user_email'] ?? '';
     </div>
 
     <nav>
-        <a href="logout.php">Log Out</a>
+    <form action="logout.php" method="POST">
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="<?= h($_SESSION['csrf_token']) ?>"
+        >
+        <button type="submit">Log Out</button>
+    </form>
     </nav>
 </header>
 
