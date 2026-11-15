@@ -2,31 +2,41 @@
 <?php
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
+require_once dirname(__DIR__) . '/app/registration.php';
 
 $captchaMessage = '';
-$captchaSuccess = false;
+$registrationMessage = '';
+$registrationErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!verifyCsrfToken()) {
         $captchaMessage = 'Your session has expired or the request is invalid. Please refresh the page.';
     } else {
-        $submittedCaptcha = strtoupper(trim($_POST['captcha'] ?? ''));
+
+        $submittedCaptcha = strtoupper(trim((string)($_POST['captcha'] ?? '')));
         $storedCaptcha = $_SESSION['captcha_answer'] ?? '';
 
         // CAPTCHA is single-use.
         unset($_SESSION['captcha_answer']);
 
         if (
-            !is_string($submittedCaptcha) ||
             !is_string($storedCaptcha) ||
             $storedCaptcha === '' ||
             !hash_equals($storedCaptcha, hash('sha256', $submittedCaptcha))
         ) {
             $captchaMessage = 'Incorrect CAPTCHA code. Please try again.';
         } else {
-            $captchaSuccess = true;
-            $captchaMessage = 'CAPTCHA verified successfully. Registration processing will be connected in the next step.';
+
+            // Process registration after successful CAPTCHA verification.
+            $result = createStudentRegistration($pdo, $config, $_POST);
+
+            if ($result['success']) {
+                header('Location: verify_registration.php');
+                exit;
+            } else {
+                $registrationErrors = $result['errors'] ?? [];
+            }
         }
     }
 }
@@ -82,6 +92,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($captchaMessage !== ''): ?>
             <div class="notice" role="alert">
                 <?= h($captchaMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($registrationMessage !== ''): ?>
+            <div class="notice" role="status">
+                <?= h($registrationMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($registrationErrors)): ?>
+            <div class="notice" role="alert">
+                <strong>Please check the following:</strong>
+                <ul>
+                    <?php foreach ($registrationErrors as $error): ?>
+                        <li><?= h($error) ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         <?php endif; ?>
 
@@ -473,6 +500,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Data Privacy Act of 2012 (RA 10173).
                 </span>
             </label>
+
+            <?php if (isset($registrationErrors['privacy_consent'])): ?>
+                <p role="alert"><?= h($registrationErrors['privacy_consent']) ?></p>
+            <?php endif; ?>
         </section>
 
         <!-- SUBMIT -->
@@ -507,20 +538,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Calculate age from the selected birthdate.
     birthdateInput.addEventListener("change", function () {
-        const birthdate = new Date(this.value + "T00:00:00");
-        const today = new Date();
-
-        if (!this.value || birthdate > today) {
+        if (!this.value) {
             document.getElementById("age").value = "";
             return;
         }
 
-        let age = today.getFullYear() - birthdate.getFullYear();
-        const monthDifference = today.getMonth() - birthdate.getMonth();
+        const birthdate = new Date(this.value + "T00:00:00");
+        const currentDate = new Date();
+
+        if (birthdate > currentDate) {
+            document.getElementById("age").value = "";
+            return;
+        }
+
+        let age = currentDate.getFullYear() - birthdate.getFullYear();
+        const monthDifference = currentDate.getMonth() - birthdate.getMonth();
 
         if (
             monthDifference < 0 ||
-            (monthDifference === 0 && today.getDate() < birthdate.getDate())
+            (monthDifference === 0 && currentDate.getDate() < birthdate.getDate())
         ) {
             age--;
         }
@@ -568,14 +604,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     });
 
     // Set minimum preferred appointment date to today.
-    const scheduleInput = document.getElementById("preferred_schedule");
-    scheduleInput.min = localToday;
+    document.getElementById("preferred_schedule").min = localToday;
 
     // Refresh CAPTCHA image.
     document.getElementById("refreshCaptcha").addEventListener("click", function () {
-        const captchaImage = document.getElementById("captchaImage");
-
-        captchaImage.src = "captcha.php?refresh=" + Date.now();
+        document.getElementById("captchaImage").src =
+            "captcha.php?refresh=" + Date.now();
 
         document.getElementById("captcha").value = "";
     });
@@ -591,7 +625,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     });
 
-    // Clear the CAPTCHA input after the page is loaded.
+    // Clear CAPTCHA input after the page loads.
     document.getElementById("captcha").value = "";
 </script>
 
