@@ -1,3 +1,4 @@
+
 -- =========================================================
 -- CAMPUS COUNSELING APPOINTMENT AND SECURE MONITORING SYSTEM
 -- IT 107 - Database Schema
@@ -13,8 +14,6 @@ USE counseling_db;
 
 -- =========================================================
 -- 1. USERS
--- Stores student accounts and authorized staff accounts.
--- ID Number is the PRIMARY KEY, as required by the handout.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS users (
@@ -69,8 +68,6 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- =========================================================
 -- 2. AUTHENTICATION ANSWERS
--- Stores hashed answers to the three seeded questions.
--- Answers must be normalized before hashing in PHP.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS auth_answers (
@@ -93,8 +90,6 @@ CREATE TABLE IF NOT EXISTS auth_answers (
 
 -- =========================================================
 -- 3. PASSWORD HISTORY
--- The application will compare new passwords against
--- the last three stored password hashes.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS password_history (
@@ -116,8 +111,6 @@ CREATE TABLE IF NOT EXISTS password_history (
 
 -- =========================================================
 -- 4. OTP RECORDS
--- Stores hashed OTPs for registration, login and recovery.
--- Never store the actual OTP in the database.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS otp_records (
@@ -148,11 +141,6 @@ CREATE TABLE IF NOT EXISTS otp_records (
 
 -- =========================================================
 -- 5. COUNSELING APPOINTMENTS
--- Stores appointment information and encrypted counselor notes.
---
--- notes_encrypted: AES-256 encrypted binary data
--- notes_iv: random initialization vector / nonce
--- notes_tag: authentication tag for AES-256-GCM
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS appointments (
@@ -195,8 +183,6 @@ CREATE TABLE IF NOT EXISTS appointments (
 
 -- =========================================================
 -- 6. LOGIN ATTEMPTS
--- Tracks successful and failed attempts.
--- Used for IP-based failure counting and blocking.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS login_attempts (
@@ -215,7 +201,6 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 
 -- =========================================================
 -- 7. IP BLOCKS
--- Stores IP addresses temporarily blocked by the system.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS ip_blocks (
@@ -235,8 +220,6 @@ CREATE TABLE IF NOT EXISTS ip_blocks (
 
 -- =========================================================
 -- 8. ACTIVITY LOGS
--- Records security events required by the IT 107 handout.
--- Application code should only INSERT into this table.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS activity_logs (
@@ -267,7 +250,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 
 -- =========================================================
 -- 9. SECURITY FLAGS
--- Stores findings produced by scripts/monitor.php.
+-- Prevents duplicate flags for the same target per day.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS security_flags (
@@ -278,6 +261,10 @@ CREATE TABLE IF NOT EXISTS security_flags (
     related_ip VARCHAR(45) NULL,
 
     detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    detected_date DATE NOT NULL DEFAULT (CURRENT_DATE),
+
+    UNIQUE KEY unique_flag_per_day (flag_type, detected_date),
 
     INDEX idx_security_flag_date (detected_at),
     INDEX idx_security_flag_type (flag_type)

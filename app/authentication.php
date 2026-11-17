@@ -10,9 +10,14 @@
  * - Progressive account lockout
  * - IP blocking
  * - Email OTP verification
+ * - Security alert emails
  * - Activity logging
  */
 
+
+/**
+ * Record authentication and security events.
+ */
 function authenticationLog(
     PDO $pdo,
     string $event,
@@ -139,14 +144,241 @@ function authenticationCheckIpThreshold(
 
 
 /**
- * Send a login OTP through PHPMailer.
+ * Send an email security alert when an account reaches
+ * a progressive lockout tier.
  *
- * OTP:
- * - Six digits
- * - Secure random generation
- * - Hashed before database storage
- * - Expires after 3 minutes
- * - Previous unused login OTP is invalidated
+ * Each account receives only one alert per tier.
+ */
+function authenticationSendLockoutAlert(
+    PDO $pdo,
+    array $config,
+    array $user,
+    int $tier,
+    int $failedCount,
+    int $lockoutSeconds
+): bool {
+
+    $userId = $user['id_number'];
+
+    // Reserve this tier to prevent duplicate alert emails.
+    try {
+
+        $stmt = $pdo->prepare(
+            'INSERT IGNORE INTO security_alerts
+            (user_id, lockout_tier, failed_attempt_count, sent_at)
+            VALUES (?, ?, ?, NOW())'
+        );
+
+        $stmt->execute([
+            $userId,
+            $tier,
+            $failedCount
+        ]);
+
+        if ($stmt->rowCount() !== 1) {
+            return false;
+        }
+
+    } catch (Throwable $e) {
+
+        error_log(
+            'Security alert reservation failed: ' . $e->getMessage()
+        );
+
+        return false;
+    }
+
+    // Prepare security alert information.
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+
+    $philippineTime = new DateTimeImmutable(
+        'now',
+        new DateTimeZone('Asia/Manila')
+    );
+
+    $formattedTime = $philippineTime->format(
+        'F j, Y h:i:s A'
+    ) . ' PHT';
+
+    // Escape values for HTML email.
+    $safeName = htmlspecialchars(
+        $user['first_name'],
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+
+    $safeIp = htmlspecialchars(
+        $ip,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+
+    $safeUserAgent = htmlspecialchars(
+        $userAgent,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+
+    $safeTime = htmlspecialchars(
+        $formattedTime,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+
+    try {
+
+        require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+        $smtp = $config['smtp'];
+
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+        $mail->isSMTP();
+
+        $mail->Host = $smtp['host'];
+        $mail->SMTPAuth = true;
+        $mail->Username = $smtp['user'];
+        $mail->Password = $smtp['pass'];
+        $mail->Port = (int) $smtp['port'];
+
+        $mail->SMTPSecure =
+            PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+
+        $mail->setFrom(
+            $smtp['from'],
+            $smtp['from_name']
+        );
+
+        $mail->addAddress(
+            $user['email'],
+            $user['first_name']
+        );
+
+        $mail->isHTML(true);
+
+        $mail->Subject =
+            'Security Alert - Campus Counseling Account Lockout';
+
+        $mail->Body = "
+            <h2>Campus Counseling Security Alert</h2>
+
+            <p>Hello {$safeName},</p>
+
+            <p>
+                We detected repeated unsuccessful login attempts
+                on your Campus Counseling account.
+            </p>
+
+            <h3>Security Event Details</h3>
+
+            <ul>
+                <li><strong>Event:</strong> Account lockout</li>
+                <li><strong>Lockout Tier:</strong> {$tier}</li>
+                <li><strong>Failed Login Attempts:</strong> {$failedCount}</li>
+                <li><strong>Temporary Lockout:</strong> {$lockoutSeconds} seconds</li>
+                <li><strong>Date and Time:</strong> {$safeTime}</li>
+                <li><strong>IP Address:</strong> {$safeIp}</li>
+                <li><strong>Browser / User Agent:</strong> {$safeUserAgent}</li>
+            </ul>
+
+            <h3>What Should You Do?</h3>
+
+            <p>
+                If these login attempts were not made by you,
+                we recommend changing your password using the
+                Forgot Password option on the login page.
+            </p>
+
+            <p>
+                If you need assistance, contact your school's
+                authorized IT support personnel.
+            </p>
+
+            <p>
+                Please do not share your password or verification codes
+                with anyone.
+            </p>
+
+            <hr>
+
+            <p>
+                <strong>Campus Counseling Appointment and Secure
+                Monitoring System</strong>
+            </p>
+
+            <p>This is an automated security notification.</p>
+        ";
+
+        $mail->AltBody =
+            "Campus Counseling Security Alert\n\n"
+            . "Hello {$user['first_name']},\n\n"
+            . "Repeated unsuccessful login attempts were detected.\n\n"
+            . "Lockout Tier: {$tier}\n"
+            . "Failed Login Attempts: {$failedCount}\n"
+            . "Temporary Lockout: {$lockoutSeconds} seconds\n"
+            . "Date and Time: {$formattedTime}\n"
+            . "IP Address: {$ip}\n"
+            . "Browser / User Agent: {$userAgent}\n\n"
+            . "If these attempts were not made by you, change your "
+            . "password using the Forgot Password option on the "
+            . "login page. Contact authorized IT support if you "
+            . "need assistance.\n\n"
+            . "Do not share your password or verification codes.\n\n"
+            . "Campus Counseling Appointment and Secure "
+            . "Monitoring System.";
+
+        $mail->send();
+
+        authenticationLog(
+            $pdo,
+            'ALERT_EMAIL_SENT',
+            $user['username'],
+            $userId,
+            'Security alert email sent for lockout tier '
+                . $tier
+                . ' after '
+                . $failedCount
+                . ' failed login attempts'
+        );
+
+        return true;
+
+    } catch (Throwable $e) {
+
+        error_log(
+            'Security alert email failed: ' . $e->getMessage()
+        );
+
+        // Remove reservation if sending failed.
+        try {
+
+            $stmt = $pdo->prepare(
+                'DELETE FROM security_alerts
+                 WHERE user_id = ?
+                 AND lockout_tier = ?'
+            );
+
+            $stmt->execute([
+                $userId,
+                $tier
+            ]);
+
+        } catch (Throwable $databaseError) {
+
+            error_log(
+                'Failed to remove security alert reservation: '
+                . $databaseError->getMessage()
+            );
+        }
+
+        return false;
+    }
+}
+
+
+/**
+ * Send a login OTP through PHPMailer.
  */
 function authenticationSendLoginOtp(
     PDO $pdo,
@@ -359,6 +591,7 @@ function authenticateStudent(
     $user = $stmt->fetch();
 
     // 3. Unknown usernames receive the same generic response.
+    // No security alert is sent for unknown accounts.
     if (!$user) {
 
         authenticationRecordAttempt(
@@ -462,6 +695,9 @@ function authenticateStudent(
             3 => 80
         ];
 
+        // Default message for ordinary invalid credentials.
+        $lockoutMessage = 'Invalid username or password.';
+
         if (
             $failedCount >= 3 &&
             $failedCount % 3 === 0
@@ -500,6 +736,22 @@ function authenticateStudent(
                     . $lockoutSeconds
                     . ' seconds'
             );
+
+            // Send one security alert for each tier.
+            authenticationSendLockoutAlert(
+                $pdo,
+                $config,
+                $user,
+                $newTier,
+                $failedCount,
+                $lockoutSeconds
+            );
+
+            // FIX: Return the lockout message to the login page.
+            $lockoutMessage =
+                'Your account is temporarily locked. Please wait '
+                . $lockoutSeconds
+                . ' seconds.';
         }
 
         // 8. Check IP threshold.
@@ -515,7 +767,7 @@ function authenticateStudent(
 
         return [
             'success' => false,
-            'message' => 'Invalid username or password.'
+            'message' => $lockoutMessage
         ];
     }
 

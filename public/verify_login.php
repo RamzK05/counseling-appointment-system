@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 authenticationLog(
                     $pdo,
-                    'LOGIN_OTP_FAILED',
+                    'OTP_FAILED',
                     null,
                     $pendingUserId,
                     'Incorrect login OTP. Attempt '
@@ -200,10 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'login'
                 ]);
 
-                // Retrieve the account.
+                // Retrieve the account, including its role.
                 $stmt = $pdo->prepare(
                     'SELECT id_number, username, email,
-                            first_name, account_status, is_verified
+                            first_name, role, account_status, is_verified
                      FROM users
                      WHERE id_number = ?
                      LIMIT 1'
@@ -274,6 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['user_email'] = $user['email'];
                     $_SESSION['user_first_name'] = $user['first_name'];
+                    $_SESSION['user_role'] = $user['role'];
                     $_SESSION['logged_in'] = true;
                     $_SESSION['last_activity'] = time();
 
